@@ -51,6 +51,13 @@ with app.app_context():
 def get_now():
     return datetime.now(timezone.utc)
 
+def normalize_dt(dt):
+    """Ensures a datetime object is timezone-aware (UTC)."""
+    if dt is None: return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
 def handle_upload(file, folder="pointeuse"):
     if not file or file.filename == '':
         return None
@@ -87,9 +94,17 @@ def clock_in():
 def clock_out():
     active_shift = Shift.query.filter_by(clock_out=None).first()
     if not active_shift: return jsonify({'error': 'No active shift'}), 400
-    active_shift.clock_out = get_now()
-    duration = active_shift.clock_out - active_shift.clock_in
+    
+    # SAFE DURATION CALCULATION
+    now = get_now()
+    active_shift.clock_out = now
+    
+    start = normalize_dt(active_shift.clock_in)
+    end = normalize_dt(active_shift.clock_out)
+    
+    duration = end - start
     active_shift.duration_minutes = int(duration.total_seconds() / 60)
+    
     db.session.commit()
     return jsonify({'success': True, 'shift': active_shift.to_dict()})
 
@@ -160,11 +175,19 @@ def send_report():
     monday = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
     
     try:
-        shifts = Shift.query.filter(Shift.clock_in >= monday).order_by(Shift.clock_in.asc()).all()
-        incidents = Incident.query.filter(Incident.timestamp >= monday).all()
-        interventions = Intervention.query.filter(Intervention.timestamp_start >= monday, Intervention.timestamp_end != None).all()
+        # We fetch and then normalize manually to be 100% safe
+        all_shifts = Shift.query.all()
+        shifts = [s for s in all_shifts if normalize_dt(s.clock_in) >= monday]
+        shifts.sort(key=lambda x: x.clock_in)
+
+        all_incidents = Incident.query.all()
+        incidents = [i for i in all_incidents if normalize_dt(i.timestamp) >= monday]
+
+        all_interventions = Intervention.query.all()
+        interventions = [iv for iv in all_interventions if normalize_dt(iv.timestamp_start) >= monday and iv.timestamp_end]
     except Exception as e:
-        print(f"Database Query Error: {e}")
+        import traceback
+        print(f"Fetch Error: {traceback.format_exc()}")
         return jsonify({'error': 'Erreur lors de la lecture des données'}), 500
 
     # 2. Build PDF
@@ -184,15 +207,23 @@ def send_report():
         
         total_min = 0
         for s in shifts:
-            date_str = s.clock_in.strftime("%d/%m")
-            in_str = s.clock_in.strftime("%H:%M")
-            out_str = s.clock_out.strftime("%H:%M") if s.clock_out else "--:--"
-            dur = f"{s.duration_minutes} min" if s.duration_minutes else ""
-            total_min += (s.duration_minutes or 0)
+            ck_in = normalize_dt(s.clock_in)
+            ck_out = normalize_dt(s.clock_out)
+            
+            date_str = ck_in.strftime("%d/%m")
+            in_str = ck_in.strftime("%H:%M")
+            out_str = ck_out.strftime("%H:%M") if ck_out else "--:--"
+            
+            # Safe duration calculation
+            dur_mins = 0
+            if ck_in and ck_out:
+                dur_mins = int((ck_out - ck_in).total_seconds() / 60)
+            
+            total_min += dur_mins
             pdf.cell(40, 8, date_str, 1, 0, 'C')
             pdf.cell(40, 8, in_str, 1, 0, 'C')
             pdf.cell(40, 8, out_str, 1, 0, 'C')
-            pdf.cell(40, 8, dur, 1, 1, 'C')
+            pdf.cell(40, 8, f"{dur_mins} min", 1, 1, 'C')
         
         pdf.set_font('Helvetica', 'B', 10)
         pdf.cell(120, 8, 'TOTAL SEMAINE', 1, 0, 'R')
@@ -205,13 +236,14 @@ def send_report():
             pdf.cell(0, 10, '2. INCIDENTS SIGNALÉS', 0, 1)
             pdf.set_font('Helvetica', '', 10)
             for inc in incidents:
+                ts = normalize_dt(inc.timestamp)
                 pdf.set_text_color(180, 0, 0)
-                pdf.cell(0, 8, f"[{inc.type}] le {inc.timestamp.strftime('%d/%m à %H:%M')}", 0, 1)
+                pdf.cell(0, 8, f"[{inc.type}] le {ts.strftime('%d/%m à %H:%M')}", 0, 1)
                 pdf.set_text_color(0)
                 pdf.multi_cell(0, 6, inc.description or "Sans description")
                 if inc.image_path:
                     try:
-                        img_data = requests.get(inc.image_path).content if inc.image_path.startswith('http') else open(os.path.join(BASE_DIR, inc.image_path.lstrip('/')), 'rb').read()
+                        img_data = requests.get(inc.image_path, timeout=10).content if inc.image_path.startswith('http') else open(os.path.join(BASE_DIR, inc.image_path.lstrip('/')), 'rb').read()
                         pdf.image(io.BytesIO(img_data), x=None, y=None, w=60)
                     except: pass
                 pdf.ln(5)
@@ -222,19 +254,21 @@ def send_report():
             pdf.set_font('Helvetica', 'B', 14)
             pdf.cell(0, 10, '3. INTERVENTIONS (AVANT/APRÈS)', 0, 1)
             for intv in interventions:
+                ts_start = normalize_dt(intv.timestamp_start)
+                ts_end = normalize_dt(intv.timestamp_end)
                 pdf.set_font('Helvetica', 'B', 11)
                 pdf.cell(0, 8, f"Lieu : {intv.location}", 0, 1)
                 pdf.set_font('Helvetica', '', 9)
-                pdf.cell(0, 6, f"Début: {intv.timestamp_start.strftime('%H:%M')} | Fin: {intv.timestamp_end.strftime('%H:%M')}", 0, 1)
+                pdf.cell(0, 6, f"Début: {ts_start.strftime('%H:%M')} | Fin: {ts_end.strftime('%H:%M') if ts_end else '--:--'}", 0, 1)
                 y_start = pdf.get_y()
                 if intv.image_before_path:
                     try:
-                        img_b = requests.get(intv.image_before_path).content if intv.image_before_path.startswith('http') else open(os.path.join(BASE_DIR, intv.image_before_path.lstrip('/')), 'rb').read()
+                        img_b = requests.get(intv.image_before_path, timeout=10).content if intv.image_before_path.startswith('http') else open(os.path.join(BASE_DIR, intv.image_before_path.lstrip('/')), 'rb').read()
                         pdf.image(io.BytesIO(img_b), x=10, y=y_start+2, w=85)
                     except: pass
                 if intv.image_after_path:
                     try:
-                        img_a = requests.get(intv.image_after_path).content if intv.image_after_path.startswith('http') else open(os.path.join(BASE_DIR, intv.image_after_path.lstrip('/')), 'rb').read()
+                        img_a = requests.get(intv.image_after_path, timeout=10).content if intv.image_after_path.startswith('http') else open(os.path.join(BASE_DIR, intv.image_after_path.lstrip('/')), 'rb').read()
                         pdf.image(io.BytesIO(img_a), x=105, y=y_start+2, w=85)
                     except: pass
                 pdf.set_y(y_start + 65)
@@ -254,7 +288,7 @@ def send_report():
         msg = MIMEMultipart()
         msg['From'] = SMTP_USER
         msg['To'] = recipient
-        msg['Subject'] = f"Rapport Pointeuse - Semaine du {monday.strftime('%d/%m/%Y')}"
+        msg['Subject'] = f"Rapport Pointeuse - {monday.strftime('%d/%m/%Y')}"
         msg.attach(MIMEText("Bonjour,\n\nVeuillez trouver ci-joint le rapport hebdomadaire d'activité.\n\nCordialement,\nService de Maintenance", 'plain'))
 
         part = MIMEBase('application', 'octet-stream')
@@ -264,14 +298,16 @@ def send_report():
         msg.attach(part)
 
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.set_debuglevel(1)
             server.starttls()
             server.login(SMTP_USER, SMTP_PASS)
             server.send_message(msg)
 
         return jsonify({'success': True})
     except Exception as e:
-        print(f"Email Error: {e}")
-        return jsonify({'error': 'Erreur lors de l\'envoi de l\'email'}), 500
+        import traceback
+        print(f"Email Error: {traceback.format_exc()}")
+        return jsonify({'error': f'Erreur lors de l\'envoi de l\'email: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5001)), debug=True)
