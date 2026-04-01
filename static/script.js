@@ -156,6 +156,11 @@ btnClockIn.addEventListener('click', async () => {
     btnClockIn.disabled = true;
     try {
         const res = await fetch('/api/clock_in', { method: 'POST' });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            showToast(data.error || 'Erreur serveur (Pointage)');
+            return;
+        }
         const data = await res.json();
         if(data.success) {
             activeShift = data.shift;
@@ -164,7 +169,7 @@ btnClockIn.addEventListener('click', async () => {
             fetchShifts();
         }
     } catch (e) {
-        alert('Erreur réseau');
+        showToast('Erreur réseau');
     }
     btnClockIn.disabled = false;
 });
@@ -173,6 +178,11 @@ btnClockOut.addEventListener('click', async () => {
     btnClockOut.disabled = true;
     try {
         const res = await fetch('/api/clock_out', { method: 'POST' });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            showToast(data.error || 'Erreur serveur (Dépointage)');
+            return;
+        }
         const data = await res.json();
         if(data.success) {
             activeShift = null;
@@ -181,7 +191,7 @@ btnClockOut.addEventListener('click', async () => {
             fetchShifts();
         }
     } catch (e) {
-        alert('Erreur réseau');
+        showToast('Erreur réseau');
     }
     btnClockOut.disabled = false;
 });
@@ -244,6 +254,10 @@ incidentForm.addEventListener('submit', async (e) => {
             method: 'POST',
             body: formData
         });
+        if (!res.ok) {
+            showToast("Erreur lors de l'envoi");
+            return;
+        }
         const data = await res.json();
         
         if(data.success) {
@@ -251,11 +265,10 @@ incidentForm.addEventListener('submit', async (e) => {
             incidentForm.reset();
             fileNameDisplay.textContent = 'Aucune photo...';
             fetchIncidents();
-            // Optional: return to first tab
             tabs[0].click();
         }
     } catch(err) {
-        alert("Erreur lors de l'envoi");
+        showToast("Erreur lors de l'envoi");
     }
     
     btn.innerHTML = 'Envoyer le rapport';
@@ -368,6 +381,10 @@ interventionStartForm.addEventListener('submit', async (e) => {
     const formData = new FormData(interventionStartForm);
     try {
         const res = await fetch('/api/intervention/start', { method: 'POST', body: formData });
+        if (!res.ok) {
+            showToast("Erreur d'envoi");
+            return;
+        }
         const data = await res.json();
         if(data.success) {
             showToast('Intervention commencée !');
@@ -375,7 +392,7 @@ interventionStartForm.addEventListener('submit', async (e) => {
             fileNameBefore.textContent = 'Aucune photo...';
             fetchInterventions();
         }
-    } catch(err) { alert("Erreur d'envoi"); }
+    } catch(err) { showToast("Erreur d'envoi"); }
     btn.innerHTML = 'Démarrer (Avant)';
     btn.disabled = false;
 });
@@ -390,6 +407,10 @@ interventionEndForm.addEventListener('submit', async (e) => {
     const formData = new FormData(interventionEndForm);
     try {
         const res = await fetch(`/api/intervention/end/${intId}`, { method: 'POST', body: formData });
+        if (!res.ok) {
+            showToast("Erreur d'envoi");
+            return;
+        }
         const data = await res.json();
         if(data.success) {
             showToast('Intervention terminée !');
@@ -397,7 +418,7 @@ interventionEndForm.addEventListener('submit', async (e) => {
             fileNameAfter.textContent = 'Aucune photo...';
             fetchInterventions();
         }
-    } catch(err) { alert("Erreur d'envoi"); }
+    } catch(err) { showToast("Erreur d'envoi"); }
     btn.innerHTML = 'Terminer (Après)';
     btn.disabled = false;
 });

@@ -1,6 +1,8 @@
 import os, smtplib, requests, io
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from datetime import datetime, timezone, timedelta
 from models import db, Shift, Incident, Intervention
 from dotenv import load_dotenv
@@ -57,6 +59,23 @@ def normalize_dt(dt):
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
+
+# -- RESCUE & DEBUG --
+@app.route('/api/debug/migrate')
+def migrate_db():
+    """Manual migration to fix PostgreSQL types."""
+    try:
+        # Alter columns to use TIMESTAMPTZ
+        db.session.execute(text("ALTER TABLE shift ALTER COLUMN clock_in TYPE TIMESTAMPTZ USING clock_in AT TIME ZONE 'UTC'"))
+        db.session.execute(text("ALTER TABLE shift ALTER COLUMN clock_out TYPE TIMESTAMPTZ USING clock_out AT TIME ZONE 'UTC'"))
+        db.session.execute(text("ALTER TABLE incident ALTER COLUMN timestamp TYPE TIMESTAMPTZ USING timestamp AT TIME ZONE 'UTC'"))
+        db.session.execute(text("ALTER TABLE intervention ALTER COLUMN timestamp_start TYPE TIMESTAMPTZ USING timestamp_start AT TIME ZONE 'UTC'"))
+        db.session.execute(text("ALTER TABLE intervention ALTER COLUMN timestamp_end TYPE TIMESTAMPTZ USING timestamp_end AT TIME ZONE 'UTC'"))
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Migration terminée !'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 def handle_upload(file, folder="pointeuse"):
     if not file or file.filename == '':
@@ -169,6 +188,10 @@ class PDFReport(FPDF):
 def send_report():
     recipient = request.json.get('email')
     if not recipient: return jsonify({'error': 'Email manquant'}), 400
+
+    # SMTP Config Check (Fail gracefully with 400)
+    if not SMTP_USER or not SMTP_PASS:
+        return jsonify({'error': 'CONFIGURATION REQUISE : Veuillez ajouter SMTP_USER et SMTP_PASS dans le tableau de bord Render.'}), 400
 
     # 1. Fetch Data (This Week)
     now = get_now()
