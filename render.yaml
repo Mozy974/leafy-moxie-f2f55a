@@ -8,6 +8,8 @@ services:
     envVars:
       - key: PORT
         value: 5001
+      - key: PYTHON_VERSION
+        value: 3.11.8
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY
