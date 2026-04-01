@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pointeuse</title>
+    <!-- PWA settings -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#0d1117">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- HEADER -->
+        <header>
+            <h1>Pointeuse</h1>
+            <p id="current-date">--/--/----</p>
+        </header>
+
+        <!-- MAIN CONTENT -->
+        <main>
+            <!-- TAB 1: POINTAGE -->
+            <section id="tab-pointage" class="tab-content active">
+                <div class="clock-card">
+                    <h2 id="current-time">00:00:00</h2>
+                    <p id="clock-status">HORS SERVICE</p>
+                    <p id="elapsed-time" style="display: none;"></p>
+                </div>
+
+                <div class="action-buttons">
+                    <button id="btn-clock-in" class="primary-btn btn-green">
+                        <i class="fa-solid fa-play"></i> POINTER ARRIVÉE
+                    </button>
+                    <button id="btn-clock-out" class="primary-btn btn-red" style="display:none;">
+                        <i class="fa-solid fa-stop"></i> POINTER DÉPART
+                    </button>
+                </div>
+
+                <div class="history-list">
+                    <h3><i class="fa-solid fa-chart-line"></i> Cette Semaine</h3>
+                    <div id="weekly-summary-card">
+                        <div class="summary-item">
+                            <span class="summary-label">Total Heures</span>
+                            <span id="total-hours-week" class="summary-value">0h 00m</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Nombre de Services</span>
+                            <span id="total-shifts-week" class="summary-value">0</span>
+                        </div>
+                    </div>
+
+                    <h3><i class="fa-solid fa-history"></i> Historique des Heures</h3>
+                    <ul id="shifts-list"></ul>
+                </div>
+            </section>
+
+            <!-- TAB 2: INCIDENTS -->
+            <section id="tab-incidents" class="tab-content">
+                <div class="form-card">
+                    <h2><i class="fa-solid fa-bolt"></i> Signaler un Incident</h2>
+                    <form id="incident-form">
+                        <div class="input-group">
+                            <label for="incident-type">Type</label>
+                            <select id="incident-type" name="type" required>
+                                <option value="Dégradation">Dégradation</option>
+                                <option value="Incivilité">Incivilité</option>
+                                <option value="Problème Technique">Problème Technique</option>
+                                <option value="Pénurie Matériel">Pénurie Matériel</option>
+                                <option value="Autre">Autre</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group file-group">
+                            <label for="incident-image" class="file-label">
+                                <i class="fa-solid fa-camera"></i> Prendre une Photo
+                            </label>
+                            <input type="file" id="incident-image" name="image" accept="image/*" capture="environment">
+                            <span id="file-name">Aucune photo...</span>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="incident-desc">Description</label>
+                            <textarea id="incident-desc" name="description" rows="3" placeholder="Où ? Quoi ?"></textarea>
+                        </div>
+
+                        <button type="submit" class="primary-btn btn-blue" id="btn-submit-incident">
+                            Envoyer le rapport
+                        </button>
+                    </form>
+                </div>
+
+                <div class="history-list">
+                    <h3><i class="fa-solid fa-list-check"></i> Derniers Incidents</h3>
+                    <ul id="incidents-list"></ul>
+                </div>
+            </section>
+
+            <!-- TAB 3: INTERVENTIONS (AVANT/APRÈS) -->
+            <section id="tab-interventions" class="tab-content">
+                <div class="form-card" id="start-intervention-card">
+                    <h2><i class="fa-solid fa-broom"></i> Nouvelle Zone</h2>
+                    <form id="intervention-start-form">
+                        <div class="input-group">
+                            <label for="intervention-location">Lieu / Pièce</label>
+                            <input type="text" id="intervention-location" name="location" placeholder="Ex: Hall d'entrée..." required>
+                        </div>
+                        <div class="input-group file-group">
+                            <label for="intervention-before" class="file-label">
+                                <i class="fa-solid fa-camera"></i> Prendre Photo AVANT
+                            </label>
+                            <input type="file" id="intervention-before" name="image_before" accept="image/*" capture="environment" required>
+                            <span id="file-name-before">Aucune photo...</span>
+                        </div>
+                        <button type="submit" class="primary-btn btn-blue" id="btn-submit-intervention-start">
+                            Démarrer (Avant)
+                        </button>
+                    </form>
+                </div>
+
+                <div class="form-card" id="active-intervention-card" style="display:none; border: 2px solid var(--accent-blue);">
+                    <h2 style="color:var(--accent-blue)"><i class="fa-solid fa-spinner fa-spin" style="margin-right:10px;"></i> En cours  <span id="active-intervention-loc" style="font-weight: 800; color:var(--text-primary); margin-left:10px;"></span></h2>
+                    <div style="margin-bottom: 15px;">
+                        <img id="active-intervention-img" src="" style="width:100%; border-radius:12px; max-height:150px; object-fit:cover; margin-bottom: 10px;">
+                    </div>
+                    <form id="intervention-end-form">
+                        <input type="hidden" id="active-intervention-id">
+                        <div class="input-group file-group" style="border-color: var(--accent-green);">
+                            <label for="intervention-after" class="file-label" style="color:var(--accent-green) !important;">
+                                <i class="fa-solid fa-camera"></i> Prendre Photo APRÈS
+                            </label>
+                            <input type="file" id="intervention-after" name="image_after" accept="image/*" capture="environment" required>
+                            <span id="file-name-after">Aucune photo...</span>
+                        </div>
+                        <button type="submit" class="primary-btn btn-green" id="btn-submit-intervention-end">
+                            Terminer (Après)
+                        </button>
+                        <button type="button" class="btn-cancel" id="btn-cancel-intervention" style="background:none; border:none; color:var(--text-secondary); padding: 10px; width: 100%; margin-top: 10px; cursor: pointer; text-decoration: underline;">Annuler l'intervention</button>
+                    </form>
+                </div>
+
+                <div class="history-list">
+                    <h3><i class="fa-solid fa-folder-open"></i> Historique Avant/Après</h3>
+                    <ul id="interventions-list"></ul>
+                </div>
+            </section>
+        </main>
+
+        <!-- BOTTOM NAV -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-target="tab-pointage">
+                <i class="fa-regular fa-clock"></i>
+                <span>Pointage</span>
+            </button>
+            <button class="nav-item" data-target="tab-incidents">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>Incidents</span>
+            </button>
+            <button class="nav-item" data-target="tab-interventions">
+                <i class="fa-solid fa-wand-sparkles"></i>
+                <span>Avant/Après</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast" class="toast">Succès !</div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

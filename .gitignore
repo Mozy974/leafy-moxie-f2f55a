@@ -1,0 +1,29 @@
+# Database
+database.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Uploads (Local files handled by Cloudinary in production)
+uploads/
+
+# Environment
+.env
+.env.example
+.venv/
+venv/
+env/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+
+# Cloudflared
+.cloudflared/
+cert.pem
