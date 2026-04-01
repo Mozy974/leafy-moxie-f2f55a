@@ -42,7 +42,7 @@ updateLiveClock();
 function updateElapsedTime() {
     if (!activeShift) return;
     const now = new Date();
-    const start = new Date(activeShift.clock_in + "Z"); // Make sure parse as UTC
+    const start = new Date(activeShift.clock_in); 
     const diff = Math.floor((now - start) / 1000); // seconds
     
     if (diff < 0) return; // Timezone safety
@@ -116,7 +116,7 @@ function updateWeeklySummary(shifts) {
     let count = 0;
 
     shifts.forEach(shift => {
-        const shiftDate = new Date(shift.clock_in + "Z");
+        const shiftDate = new Date(shift.clock_in);
         if (shiftDate >= monday) {
             count++;
             if (shift.duration_minutes) {
@@ -291,7 +291,7 @@ function renderIncidents(incidents) {
         const li = document.createElement('li');
         li.className = 'incident-item';
         
-        const dateStr = new Date(inc.timestamp + "Z").toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', hour:'2-digit', minute:'2-digit'});
+        const dateStr = new Date(inc.timestamp).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', hour:'2-digit', minute:'2-digit'});
         
         let imgHtml = '';
         if (inc.image_path) {
@@ -440,7 +440,7 @@ function renderInterventions(interventions) {
         const li = document.createElement('li');
         li.className = 'incident-item';
         
-        const dateStr = new Date(inc.timestamp_start + "Z").toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', hour:'2-digit', minute:'2-digit'});
+        const dateStr = new Date(inc.timestamp_start).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', hour:'2-digit', minute:'2-digit'});
         
         li.innerHTML = `
             <div class="incident-header">

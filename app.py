@@ -25,13 +25,21 @@ if database_url and database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///' + os.path.join(BASE_DIR, 'database.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {"pool_pre_ping": True}
 
-cloudinary.config(
-    cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME'),
-    api_key = os.environ.get('CLOUDINARY_API_KEY'),
-    api_secret = os.environ.get('CLOUDINARY_API_SECRET'),
-    secure = True
-)
+# Cloudinary Config
+cloudinary_url = os.environ.get('CLOUDINARY_URL')
+if cloudinary_url:
+    # If full URL exists, use it (most reliable)
+    cloudinary.config(cloudinary_url=cloudinary_url, secure=True)
+else:
+    # Fallback to individual keys
+    cloudinary.config(
+        cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME'),
+        api_key = os.environ.get('CLOUDINARY_API_KEY'),
+        api_secret = os.environ.get('CLOUDINARY_API_SECRET'),
+        secure = True
+    )
 
 # Email Settings (SMTP)
 SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
@@ -61,21 +69,7 @@ def normalize_dt(dt):
     return dt.astimezone(timezone.utc)
 
 # -- RESCUE & DEBUG --
-@app.route('/api/debug/migrate')
-def migrate_db():
-    """Manual migration to fix PostgreSQL types."""
-    try:
-        # Alter columns to use TIMESTAMPTZ
-        db.session.execute(text("ALTER TABLE shift ALTER COLUMN clock_in TYPE TIMESTAMPTZ USING clock_in AT TIME ZONE 'UTC'"))
-        db.session.execute(text("ALTER TABLE shift ALTER COLUMN clock_out TYPE TIMESTAMPTZ USING clock_out AT TIME ZONE 'UTC'"))
-        db.session.execute(text("ALTER TABLE incident ALTER COLUMN timestamp TYPE TIMESTAMPTZ USING timestamp AT TIME ZONE 'UTC'"))
-        db.session.execute(text("ALTER TABLE intervention ALTER COLUMN timestamp_start TYPE TIMESTAMPTZ USING timestamp_start AT TIME ZONE 'UTC'"))
-        db.session.execute(text("ALTER TABLE intervention ALTER COLUMN timestamp_end TYPE TIMESTAMPTZ USING timestamp_end AT TIME ZONE 'UTC'"))
-        db.session.commit()
-        return jsonify({'success': True, 'message': 'Migration terminée !'})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+# Migration tools removed as they are no longer needed.
 
 def handle_upload(file, folder="pointeuse"):
     if not file or file.filename == '':
