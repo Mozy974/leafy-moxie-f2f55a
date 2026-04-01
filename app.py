@@ -42,6 +42,8 @@ db.init_app(app)
 
 with app.app_context():
     db.create_all()
+    print("Database initialization successful!")
+    print(f"PostgreSQL/SQLite Connected to: {app.config['SQLALCHEMY_DATABASE_URI'][:20]}...")
 
 def get_now():
     return datetime.now(timezone.utc)
