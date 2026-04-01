@@ -307,10 +307,7 @@ function showToast(msg) {
     }, 3000);
 }
 
-// Init
-fetchShifts();
-fetchIncidents();
-fetchInterventions();
+
 
 // 5. API Calls (Interventions Avant/Après)
 const interventionStartForm = document.getElementById('intervention-start-form');
@@ -463,3 +460,63 @@ window.addEventListener('offline', () => {
     document.body.classList.add('is-offline');
 });
 if (!navigator.onLine) document.body.classList.add('is-offline');
+
+// 8. Report PDF & Email
+const btnShowReportModal = document.getElementById('btn-show-report-modal');
+const btnCloseReportModal = document.getElementById('btn-close-report-modal');
+const btnSendReport = document.getElementById('btn-send-report');
+const reportModal = document.getElementById('report-modal');
+const reportEmailInput = document.getElementById('report-email');
+
+if (btnShowReportModal) {
+    btnShowReportModal.addEventListener('click', () => {
+        reportModal.style.display = 'flex';
+    });
+}
+
+if (btnCloseReportModal) {
+    btnCloseReportModal.addEventListener('click', () => {
+        reportModal.style.display = 'none';
+    });
+}
+
+if (btnSendReport) {
+    btnSendReport.addEventListener('click', async () => {
+        const email = reportEmailInput.value.trim();
+        if (!email) {
+            showToast('Veuillez saisir un email');
+            return;
+        }
+
+        btnSendReport.disabled = true;
+        const originalText = btnSendReport.innerHTML;
+        btnSendReport.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ENVOI...';
+
+        try {
+            const res = await fetch('/api/report/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                showToast('Rapport envoyé avec succès !');
+                reportModal.style.display = 'none';
+            } else {
+                showToast(data.error || "Erreur lors de l'envoi");
+            }
+        } catch (e) {
+            showToast("Erreur de connexion au serveur");
+        }
+
+        btnSendReport.disabled = false;
+        btnSendReport.innerHTML = originalText;
+    });
+}
+
+// Init
+fetchShifts();
+fetchIncidents();
+fetchInterventions();
+

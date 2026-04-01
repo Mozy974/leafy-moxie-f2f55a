@@ -5,3 +5,5 @@ cloudinary==1.39.1
 python-dotenv==1.0.1
 gunicorn==21.2.0
 werkzeug==3.0.1
+fpdf2==2.8.2
+requests==2.31.0
