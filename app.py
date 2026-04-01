@@ -157,84 +157,94 @@ def send_report():
 
     # 1. Fetch Data (This Week)
     now = get_now()
-    monday = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-    shifts = Shift.query.filter(Shift.clock_in >= monday).order_by(Shift.clock_in.asc()).all()
-    incidents = Incident.query.filter(Incident.timestamp >= monday).all()
-    interventions = Intervention.query.filter(Intervention.timestamp_start >= monday, Intervention.timestamp_end != None).all()
+    monday = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+    
+    try:
+        shifts = Shift.query.filter(Shift.clock_in >= monday).order_by(Shift.clock_in.asc()).all()
+        incidents = Incident.query.filter(Incident.timestamp >= monday).all()
+        interventions = Intervention.query.filter(Intervention.timestamp_start >= monday, Intervention.timestamp_end != None).all()
+    except Exception as e:
+        print(f"Database Query Error: {e}")
+        return jsonify({'error': 'Erreur lors de la lecture des données'}), 500
 
     # 2. Build PDF
-    pdf = PDFReport()
-    pdf.add_page()
-    
-    # -- HEURES --
-    pdf.set_font('Helvetica', 'B', 14)
-    pdf.cell(0, 10, '1. POINTAGES DE LA SEMAINE', 0, 1)
-    pdf.set_font('Helvetica', '', 10)
-    pdf.set_fill_color(240, 240, 240)
-    pdf.cell(40, 8, 'Date', 1, 0, 'C', 1)
-    pdf.cell(40, 8, 'Arrivée', 1, 0, 'C', 1)
-    pdf.cell(40, 8, 'Départ', 1, 0, 'C', 1)
-    pdf.cell(40, 8, 'Durée', 1, 1, 'C', 1)
-    
-    total_min = 0
-    for s in shifts:
-        date_str = s.clock_in.strftime("%d/%m")
-        in_str = s.clock_in.strftime("%H:%M")
-        out_str = s.clock_out.strftime("%H:%M") if s.clock_out else "--:--"
-        dur = f"{s.duration_minutes} min" if s.duration_minutes else ""
-        total_min += (s.duration_minutes or 0)
-        pdf.cell(40, 8, date_str, 1, 0, 'C')
-        pdf.cell(40, 8, in_str, 1, 0, 'C')
-        pdf.cell(40, 8, out_str, 1, 0, 'C')
-        pdf.cell(40, 8, dur, 1, 1, 'C')
-    
-    pdf.set_font('Helvetica', 'B', 10)
-    pdf.cell(120, 8, 'TOTAL SEMAINE', 1, 0, 'R')
-    pdf.cell(40, 8, f"{total_min//60}h {total_min%60}min", 1, 1, 'C')
-    pdf.ln(10)
-
-    # -- INCIDENTS --
-    if incidents:
-        pdf.set_font('Helvetica', 'B', 14)
-        pdf.cell(0, 10, '2. INCIDENTS SIGNALÉS', 0, 1)
-        pdf.set_font('Helvetica', '', 10)
-        for inc in incidents:
-            pdf.set_text_color(180, 0, 0)
-            pdf.cell(0, 8, f"[{inc.type}] le {inc.timestamp.strftime('%d/%m à %H:%M')}", 0, 1)
-            pdf.set_text_color(0)
-            pdf.multi_cell(0, 6, inc.description or "Sans description")
-            if inc.image_path:
-                try:
-                    img_data = requests.get(inc.image_path).content if inc.image_path.startswith('http') else open(os.path.join(BASE_DIR, inc.image_path.lstrip('/')), 'rb').read()
-                    pdf.image(io.BytesIO(img_data), x=None, y=None, w=60)
-                except: pass
-            pdf.ln(5)
-
-    # -- INTERVENTIONS --
-    if interventions:
+    try:
+        pdf = PDFReport()
         pdf.add_page()
+        
+        # -- HEURES --
         pdf.set_font('Helvetica', 'B', 14)
-        pdf.cell(0, 10, '3. INTERVENTIONS (AVANT/APRÈS)', 0, 1)
-        for intv in interventions:
-            pdf.set_font('Helvetica', 'B', 11)
-            pdf.cell(0, 8, f"Lieu : {intv.location}", 0, 1)
-            pdf.set_font('Helvetica', '', 9)
-            pdf.cell(0, 6, f"Début: {intv.timestamp_start.strftime('%H:%M')} | Fin: {intv.timestamp_end.strftime('%H:%M')}", 0, 1)
-            y_start = pdf.get_y()
-            if intv.image_before_path:
-                try:
-                    img_b = requests.get(intv.image_before_path).content if intv.image_before_path.startswith('http') else open(os.path.join(BASE_DIR, intv.image_before_path.lstrip('/')), 'rb').read()
-                    pdf.image(io.BytesIO(img_b), x=10, y=y_start+2, w=85)
-                except: pass
-            if intv.image_after_path:
-                try:
-                    img_a = requests.get(intv.image_after_path).content if intv.image_after_path.startswith('http') else open(os.path.join(BASE_DIR, intv.image_after_path.lstrip('/')), 'rb').read()
-                    pdf.image(io.BytesIO(img_a), x=105, y=y_start+2, w=85)
-                except: pass
-            pdf.set_y(y_start + 65)
-            pdf.ln(5)
+        pdf.cell(0, 10, '1. POINTAGES DE LA SEMAINE', 0, 1)
+        pdf.set_font('Helvetica', '', 10)
+        pdf.set_fill_color(240, 240, 240)
+        pdf.cell(40, 8, 'Date', 1, 0, 'C', 1)
+        pdf.cell(40, 8, 'Arrivée', 1, 0, 'C', 1)
+        pdf.cell(40, 8, 'Départ', 1, 0, 'C', 1)
+        pdf.cell(40, 8, 'Durée', 1, 1, 'C', 1)
+        
+        total_min = 0
+        for s in shifts:
+            date_str = s.clock_in.strftime("%d/%m")
+            in_str = s.clock_in.strftime("%H:%M")
+            out_str = s.clock_out.strftime("%H:%M") if s.clock_out else "--:--"
+            dur = f"{s.duration_minutes} min" if s.duration_minutes else ""
+            total_min += (s.duration_minutes or 0)
+            pdf.cell(40, 8, date_str, 1, 0, 'C')
+            pdf.cell(40, 8, in_str, 1, 0, 'C')
+            pdf.cell(40, 8, out_str, 1, 0, 'C')
+            pdf.cell(40, 8, dur, 1, 1, 'C')
+        
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.cell(120, 8, 'TOTAL SEMAINE', 1, 0, 'R')
+        pdf.cell(40, 8, f"{total_min//60}h {total_min%60}min", 1, 1, 'C')
+        pdf.ln(10)
 
-    pdf_output = pdf.output(dest='S') # S = return as string (bytes)
+        # -- INCIDENTS --
+        if incidents:
+            pdf.set_font('Helvetica', 'B', 14)
+            pdf.cell(0, 10, '2. INCIDENTS SIGNALÉS', 0, 1)
+            pdf.set_font('Helvetica', '', 10)
+            for inc in incidents:
+                pdf.set_text_color(180, 0, 0)
+                pdf.cell(0, 8, f"[{inc.type}] le {inc.timestamp.strftime('%d/%m à %H:%M')}", 0, 1)
+                pdf.set_text_color(0)
+                pdf.multi_cell(0, 6, inc.description or "Sans description")
+                if inc.image_path:
+                    try:
+                        img_data = requests.get(inc.image_path).content if inc.image_path.startswith('http') else open(os.path.join(BASE_DIR, inc.image_path.lstrip('/')), 'rb').read()
+                        pdf.image(io.BytesIO(img_data), x=None, y=None, w=60)
+                    except: pass
+                pdf.ln(5)
+
+        # -- INTERVENTIONS --
+        if interventions:
+            pdf.add_page()
+            pdf.set_font('Helvetica', 'B', 14)
+            pdf.cell(0, 10, '3. INTERVENTIONS (AVANT/APRÈS)', 0, 1)
+            for intv in interventions:
+                pdf.set_font('Helvetica', 'B', 11)
+                pdf.cell(0, 8, f"Lieu : {intv.location}", 0, 1)
+                pdf.set_font('Helvetica', '', 9)
+                pdf.cell(0, 6, f"Début: {intv.timestamp_start.strftime('%H:%M')} | Fin: {intv.timestamp_end.strftime('%H:%M')}", 0, 1)
+                y_start = pdf.get_y()
+                if intv.image_before_path:
+                    try:
+                        img_b = requests.get(intv.image_before_path).content if intv.image_before_path.startswith('http') else open(os.path.join(BASE_DIR, intv.image_before_path.lstrip('/')), 'rb').read()
+                        pdf.image(io.BytesIO(img_b), x=10, y=y_start+2, w=85)
+                    except: pass
+                if intv.image_after_path:
+                    try:
+                        img_a = requests.get(intv.image_after_path).content if intv.image_after_path.startswith('http') else open(os.path.join(BASE_DIR, intv.image_after_path.lstrip('/')), 'rb').read()
+                        pdf.image(io.BytesIO(img_a), x=105, y=y_start+2, w=85)
+                    except: pass
+                pdf.set_y(y_start + 65)
+                pdf.ln(5)
+
+        pdf_output = pdf.output(dest='S')
+    except Exception as e:
+        import traceback
+        print(f"PDF Generation Error: {traceback.format_exc()}")
+        return jsonify({'error': 'Erreur lors de la génération du PDF'}), 500
 
     # 3. Send Email
     if not SMTP_USER or not SMTP_PASS:

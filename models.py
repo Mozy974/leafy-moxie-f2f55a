@@ -8,8 +8,8 @@ def get_now():
 
 class Shift(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    clock_in = db.Column(db.DateTime, nullable=False, default=get_now)
-    clock_out = db.Column(db.DateTime, nullable=True)
+    clock_in = db.Column(db.DateTime(timezone=True), nullable=False, default=get_now)
+    clock_out = db.Column(db.DateTime(timezone=True), nullable=True)
     duration_minutes = db.Column(db.Integer, nullable=True) # Calculated at clock_out
 
     def to_dict(self):
@@ -25,7 +25,7 @@ class Incident(db.Model):
     type = db.Column(db.String(50), nullable=False) # Incivilité, Dégradation, Autre
     description = db.Column(db.Text, nullable=True)
     image_path = db.Column(db.String(500), nullable=True)
-    timestamp = db.Column(db.DateTime, nullable=False, default=get_now)
+    timestamp = db.Column(db.DateTime(timezone=True), nullable=False, default=get_now)
 
     def to_dict(self):
         return {
@@ -41,8 +41,8 @@ class Intervention(db.Model):
     location = db.Column(db.String(100), nullable=False)
     image_before_path = db.Column(db.String(500), nullable=True)
     image_after_path = db.Column(db.String(500), nullable=True)
-    timestamp_start = db.Column(db.DateTime, nullable=False, default=get_now)
-    timestamp_end = db.Column(db.DateTime, nullable=True)
+    timestamp_start = db.Column(db.DateTime(timezone=True), nullable=False, default=get_now)
+    timestamp_end = db.Column(db.DateTime(timezone=True), nullable=True)
 
     def to_dict(self):
         return {
