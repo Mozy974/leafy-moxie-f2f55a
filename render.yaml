@@ -4,10 +4,8 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn -b 0.0.0.0:$PORT app:app
     envVars:
-      - key: PORT
-        value: 5001
       - key: PYTHON_VERSION
         value: 3.11.8
       - key: CLOUDINARY_CLOUD_NAME
@@ -17,4 +15,6 @@ services:
       - key: CLOUDINARY_API_SECRET
         sync: false
       - key: DATABASE_URL
+        sync: false
+      - key: CLOUDINARY_URL
         sync: false
