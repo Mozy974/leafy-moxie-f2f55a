@@ -62,7 +62,7 @@
 
                 <!-- EMAIL MODAL -->
                 <div id="report-modal" class="modal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.8); backdrop-filter:blur(5px); align-items:center; justify-content:center;">
-                    <div class="modal-content" style="background:var(--bg-secondary); padding:25px; border-radius:24px; width:90%; max-width:400px; border:1px solid rgba(255,255,255,0.1);">
+                    <div id="report-modal-card" class="modal-content" style="background:var(--bg-secondary); padding:25px; border-radius:24px; width:90%; max-width:400px; border:1px solid rgba(255,255,255,0.1);">
                         <h2 style="margin-bottom:15px; font-size:1.4rem;"><i class="fa-solid fa-paper-plane" style="color:var(--accent-purple)"></i> Destinataire</h2>
                         <p style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:20px;">Saisissez l'email de réception du rapport (Semaine en cours).</p>
                         <div class="input-group">
@@ -72,6 +72,8 @@
                             <button id="btn-send-report" class="primary-btn btn-purple" style="flex:2; border:none;">ENVOYER</button>
                             <button id="btn-close-report-modal" class="btn-cancel" style="flex:1; border:none; background:rgba(255,255,255,0.05); color:white; border-radius:12px;">ANNULER</button>
                         </div>
+                        <!-- Status tag: updated dynamically by slowRequestFeedback() -->
+                        <span class="status-tag" style="display:none; font-size:12px; font-weight:600; margin-top:14px; display:block; text-align:center; opacity:0; transition: opacity 0.4s ease;"></span>
                     </div>
                 </div>
             </section>

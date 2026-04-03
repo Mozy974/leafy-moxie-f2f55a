@@ -331,14 +331,60 @@ function renderIncidents(incidents) {
     });
 }
 
-// Utils
-function showToast(msg) {
+// ── Toast system ──────────────────────────────────────────────────────────────
+// variant: 'success' | 'warning' | 'error'
+function showToast(msg, variant = 'success', duration = 3000) {
     const toast = document.getElementById('toast');
-    toast.textContent = msg;
+
+    // Reset classes
+    toast.className = 'toast';
+    if (variant === 'warning') toast.classList.add('toast--warning');
+    if (variant === 'error')   toast.classList.add('toast--error');
+
+    if (variant === 'warning') {
+        toast.innerHTML = `<span class="toast-icon">⚙️</span><span>${msg}</span>`;
+    } else {
+        toast.textContent = msg;
+    }
+
     toast.classList.add('show');
-    setTimeout(() => {
-         toast.classList.remove('show');
-    }, 3000);
+    setTimeout(() => toast.classList.remove('show'), duration);
+}
+
+// ── Slow-request feedback ──────────────────────────────────────────────────────
+function slowRequestFeedback(cardId) {
+    const card = document.getElementById(cardId);
+    if (!card) return;
+
+    // 1. On passe la carte en mode "Priorité Fond" (Morphing)
+    card.classList.add('is-processing');
+
+    // 2. On injecte un micro-message stylé sous le loader
+    const statusTag = card.querySelector('.status-tag');
+    if (statusTag) {
+        statusTag.innerText = "Optimisation du flux...";
+        statusTag.style.color = "#6366F1"; // indigo
+        statusTag.style.opacity = "1";
+    }
+
+    // 3. On libère le thread principal + toast informatif
+    showToast(
+        "Cette analyse prend un peu plus de temps que prévu. On s'en occupe, continuez votre navigation !",
+        'warning',
+        6000
+    );
+    console.log(`[System] Route lente détectée sur ${cardId}. Mode hybride activé.`);
+}
+
+function restoreCard(cardId) {
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    card.classList.remove('is-processing');
+    const statusTag = card.querySelector('.status-tag');
+    if (statusTag) {
+        statusTag.innerText = '';
+        statusTag.style.opacity = '0';
+    }
 }
 
 
@@ -547,6 +593,9 @@ if (btnSendReport) {
             return;
         }
 
+        // Find the report card for animation (the modal's inner card)
+        const reportCard = reportModal.querySelector('.modal-card') || reportModal.querySelector('div');
+
         btnSendReport.disabled = true;
         const originalText = btnSendReport.innerHTML;
         btnSendReport.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ENVOI...';
@@ -559,14 +608,23 @@ if (btnSendReport) {
             });
             const data = await res.json();
 
+            // ── Middleware slow-request signal ────────────────────────────────
+            if (res.status === 503 && data.status === 'optimization_needed') {
+                slowRequestFeedback('report-modal-card');
+                btnSendReport.innerHTML = originalText;
+                btnSendReport.disabled = false;
+                return; // Keep modal open, let user navigate freely
+            }
+            // ─────────────────────────────────────────────────────────────────
+
             if (data.success) {
                 showToast('Rapport envoyé avec succès !');
                 reportModal.style.display = 'none';
             } else {
-                showToast(data.error || "Erreur lors de l'envoi");
+                showToast(data.error || "Erreur lors de l'envoi", 'error');
             }
         } catch (e) {
-            showToast("Erreur de connexion au serveur");
+            showToast("Erreur de connexion au serveur", 'error');
         }
 
         btnSendReport.disabled = false;

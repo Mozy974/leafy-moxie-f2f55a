@@ -1,4 +1,5 @@
 import os, smtplib, requests, io
+import logging
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy
@@ -33,6 +34,11 @@ if SENTRY_DSN:
 
 app = Flask(__name__)
 Compress(app) # Enable Gzip Compression
+
+# -- MIDDLEWARE --
+from middleware import GlobalTimeoutLogger, slow_request_guard
+app.wsgi_app = GlobalTimeoutLogger(app.wsgi_app, threshold_seconds=10)
+logging.basicConfig(level=logging.INFO)
 
 # -- CONFIGURATIONS --
 BASE_DIR = os.path.abspath(os.path.dirname(__name__))
@@ -94,7 +100,7 @@ def normalize_dt(dt):
 # -- VALIDATION SCHEMAS (MARSHMALLOW) --
 class IncidentSchema(Schema):
     type = fields.Str(required=True)
-    description = fields.Str(missing="")
+    description = fields.Str(load_default="")
 
 class InterventionStartSchema(Schema):
     location = fields.Str(required=True)
@@ -219,6 +225,7 @@ class PDFReport(FPDF):
         self.ln(10)
 
 @app.route('/api/report/send', methods=['POST'])
+@slow_request_guard(threshold_seconds=15)  # PDF + email = opération lourde
 def send_report():
     try:
         data = report_send_schema.load(request.json)
