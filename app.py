@@ -13,10 +13,26 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
+from flask_compress import Compress
+from marshmallow import Schema, fields, ValidationError
+import sentry_sdk
+from sentry_sdk.integrations.flask import FlaskIntegration
+from flask_migrate import Migrate
 
 load_dotenv() 
 
+# -- MONITORING (SENTRY) --
+SENTRY_DSN = os.environ.get('SENTRY_DSN')
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[FlaskIntegration()],
+        traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
+    )
+
 app = Flask(__name__)
+Compress(app) # Enable Gzip Compression
 
 # -- CONFIGURATIONS --
 BASE_DIR = os.path.abspath(os.path.dirname(__name__))
@@ -52,6 +68,13 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 db.init_app(app)
+migrate = Migrate(app, db)
+
+@app.after_request
+def add_pwa_headers(response):
+    # Enable service worker in a specific scope if needed
+    response.headers['Service-Worker-Allowed'] = '/'
+    return response
 
 with app.app_context():
     db.create_all()
@@ -68,8 +91,20 @@ def normalize_dt(dt):
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
 
-# -- RESCUE & DEBUG --
-# Migration tools removed as they are no longer needed.
+# -- VALIDATION SCHEMAS (MARSHMALLOW) --
+class IncidentSchema(Schema):
+    type = fields.Str(required=True)
+    description = fields.Str(missing="")
+
+class InterventionStartSchema(Schema):
+    location = fields.Str(required=True)
+
+class ReportSendSchema(Schema):
+    email = fields.Email(required=True)
+
+incident_schema = IncidentSchema()
+intervention_start_schema = InterventionStartSchema()
+report_send_schema = ReportSendSchema()
 
 def handle_upload(file, folder="pointeuse"):
     if not file or file.filename == '':
@@ -129,11 +164,13 @@ def get_shifts():
 # -- INCIDENT & INTERVENTION API --
 @app.route('/api/incident', methods=['POST'])
 def report_incident():
-    itype = request.form.get('type')
-    desc = request.form.get('description', '')
-    if not itype: return jsonify({'error': 'Type missing'}), 400
+    try:
+        data = incident_schema.load(request.form)
+    except ValidationError as err:
+        return jsonify(err.messages), 400
+
     url = handle_upload(request.files.get('image'), folder="incidents")
-    new_inc = Incident(type=itype, description=desc, image_path=url)
+    new_inc = Incident(type=data['type'], description=data['description'], image_path=url)
     db.session.add(new_inc)
     db.session.commit()
     return jsonify({'success': True, 'incident': new_inc.to_dict()})
@@ -145,10 +182,13 @@ def get_incidents():
 
 @app.route('/api/intervention/start', methods=['POST'])
 def start_intervention():
-    loc = request.form.get('location')
-    if not loc: return jsonify({'error': 'Location missing'}), 400
+    try:
+        data = intervention_start_schema.load(request.form)
+    except ValidationError as err:
+        return jsonify(err.messages), 400
+        
     url = handle_upload(request.files.get('image_before'), folder="z-avant")
-    new_int = Intervention(location=loc, image_before_path=url)
+    new_int = Intervention(location=data['location'], image_before_path=url)
     db.session.add(new_int)
     db.session.commit()
     return jsonify({'success': True, 'intervention': new_int.to_dict()})
@@ -180,8 +220,12 @@ class PDFReport(FPDF):
 
 @app.route('/api/report/send', methods=['POST'])
 def send_report():
-    recipient = request.json.get('email')
-    if not recipient: return jsonify({'error': 'Email manquant'}), 400
+    try:
+        data = report_send_schema.load(request.json)
+    except ValidationError as err:
+        return jsonify(err.messages), 400
+
+    recipient = data['email']
 
     # SMTP Config Check (Fail gracefully with 400)
     if not SMTP_USER or not SMTP_PASS:

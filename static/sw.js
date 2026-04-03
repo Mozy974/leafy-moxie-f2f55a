@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pointeuse-cache-v1';
+const CACHE_NAME = 'pointeuse-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/static/style.css',

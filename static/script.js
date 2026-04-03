@@ -28,6 +28,20 @@ function getImageUrl(path) {
     return path.startsWith('/') ? path : `/uploads/${path}`;
 }
 
+function parseDate(dateStr) {
+    if (!dateStr) return null;
+    // If it already has Z or +00:00, don't add Z
+    if (dateStr.includes('Z') || dateStr.includes('+')) {
+        return new Date(dateStr);
+    }
+    // For SQLite strings like "2024-05-24 12:00:00", add Z for UTC
+    let formatted = dateStr.replace(' ', 'T');
+    if (!formatted.includes('Z') && !formatted.includes('+')) {
+        formatted += 'Z';
+    }
+    return new Date(formatted);
+}
+
 // 1. Clock and UI Updates
 function updateLiveClock() {
     const now = new Date();
@@ -42,7 +56,8 @@ updateLiveClock();
 function updateElapsedTime() {
     if (!activeShift) return;
     const now = new Date();
-    const start = new Date(activeShift.clock_in); 
+    const start = parseDate(activeShift.clock_in); 
+    if (!start || isNaN(start.getTime())) return;
     const diff = Math.floor((now - start) / 1000); // seconds
     
     if (diff < 0) return; // Timezone safety
@@ -108,8 +123,9 @@ function updateWeeklySummary(shifts) {
     const now = new Date();
     // Get Monday of current week
     const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
-    const monday = new Date(now.setDate(diff));
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(now.getTime());
+    monday.setDate(diff);
     monday.setHours(0, 0, 0, 0);
 
     let totalMinutes = 0;
@@ -204,7 +220,9 @@ function renderShifts(shifts) {
         const li = document.createElement('li');
         li.className = 'shift-item';
         
-        const inDate = new Date(shift.clock_in + "Z");
+        const inDate = parseDate(shift.clock_in);
+        if (!inDate || isNaN(inDate.getTime())) return;
+
         const inStr = inDate.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
         const dateStr = inDate.toLocaleDateString('fr-FR', {day: '2-digit', month: 'short'});
         
@@ -212,7 +230,7 @@ function renderShifts(shifts) {
         let durStr = '--';
         
         if (shift.clock_out) {
-            const outDate = new Date(shift.clock_out + "Z");
+            const outDate = parseDate(shift.clock_out);
             outStr = outDate.toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
             
             const rh = Math.floor(shift.duration_minutes / 60);
@@ -291,7 +309,10 @@ function renderIncidents(incidents) {
         const li = document.createElement('li');
         li.className = 'incident-item';
         
-        const dateStr = new Date(inc.timestamp).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', hour:'2-digit', minute:'2-digit'});
+        const inDate = parseDate(inc.timestamp);
+        const dateStr = (inDate && !isNaN(inDate.getTime())) 
+            ? inDate.toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', hour:'2-digit', minute:'2-digit'})
+            : 'Date inconnue';
         
         let imgHtml = '';
         if (inc.image_path) {
@@ -440,7 +461,10 @@ function renderInterventions(interventions) {
         const li = document.createElement('li');
         li.className = 'incident-item';
         
-        const dateStr = new Date(inc.timestamp_start).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', hour:'2-digit', minute:'2-digit'});
+        const inDate = parseDate(inc.timestamp_start);
+        const dateStr = (inDate && !isNaN(inDate.getTime()))
+            ? inDate.toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', hour:'2-digit', minute:'2-digit'})
+            : 'Date inconnue';
         
         li.innerHTML = `
             <div class="incident-header">
@@ -466,7 +490,21 @@ function renderInterventions(interventions) {
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/static/sw.js')
-            .then(reg => console.log('Service Worker enregistré !'))
+            .then(reg => {
+                console.log('Service Worker enregistré !');
+                
+                // Detection of updates
+                reg.addEventListener('updatefound', () => {
+                    const newWorker = reg.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            // A new SW was installed AND there is already a previous controller
+                            // (meaning it's an update, not a first-time install)
+                            document.getElementById('update-banner').style.display = 'flex';
+                        }
+                    });
+                });
+            })
             .catch(err => console.error('Erreur SW:', err));
     });
 }
