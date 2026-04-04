@@ -85,7 +85,7 @@ tabs.forEach(tab => {
 // 3. API Calls (Shifts)
 async function fetchShifts() {
     try {
-        const res = await fetch('/api/shifts');
+        const res = await fetch('/api/shifts', { credentials: 'same-origin' });
         const data = await res.json();
         
         // Detect if top shift is active
@@ -171,7 +171,7 @@ function showClockOutUI() {
 btnClockIn.addEventListener('click', async () => {
     btnClockIn.disabled = true;
     try {
-        const res = await fetch('/api/clock_in', { method: 'POST' });
+        const res = await fetch('/api/clock_in', { method: 'POST', credentials: 'same-origin' });
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
             showToast(data.error || 'Erreur serveur (Pointage)');
@@ -193,7 +193,7 @@ btnClockIn.addEventListener('click', async () => {
 btnClockOut.addEventListener('click', async () => {
     btnClockOut.disabled = true;
     try {
-        const res = await fetch('/api/clock_out', { method: 'POST' });
+        const res = await fetch('/api/clock_out', { method: 'POST', credentials: 'same-origin' });
         if (!res.ok) {
             const data = await res.json().catch(() => ({}));
             showToast(data.error || 'Erreur serveur (Dépointage)');
@@ -270,6 +270,7 @@ incidentForm.addEventListener('submit', async (e) => {
     try {
         const res = await fetch('/api/incident', {
             method: 'POST',
+            credentials: 'same-origin',
             body: formData
         });
         if (!res.ok) {
@@ -295,7 +296,7 @@ incidentForm.addEventListener('submit', async (e) => {
 
 async function fetchIncidents() {
     try {
-        const res = await fetch('/api/incidents');
+        const res = await fetch('/api/incidents', { credentials: 'same-origin' });
         const data = await res.json();
         renderIncidents(data.incidents);
     } catch (e) {
@@ -414,7 +415,7 @@ fileInputAfter.addEventListener('change', (e) => {
 
 async function fetchInterventions() {
     try {
-        const res = await fetch('/api/interventions');
+        const res = await fetch('/api/interventions', { credentials: 'same-origin' });
         const data = await res.json();
         const pending = data.interventions.find(i => !i.timestamp_end);
         
@@ -447,7 +448,7 @@ interventionStartForm.addEventListener('submit', async (e) => {
 
     const formData = new FormData(interventionStartForm);
     try {
-        const res = await fetch('/api/intervention/start', { method: 'POST', body: formData });
+        const res = await fetch('/api/intervention/start', { method: 'POST', credentials: 'same-origin', body: formData });
         if (!res.ok) {
             showToast("Erreur d'envoi");
             return;
@@ -473,7 +474,7 @@ interventionEndForm.addEventListener('submit', async (e) => {
     const intId = document.getElementById('active-intervention-id').value;
     const formData = new FormData(interventionEndForm);
     try {
-        const res = await fetch(`/api/intervention/end/${intId}`, { method: 'POST', body: formData });
+        const res = await fetch(`/api/intervention/end/${intId}`, { method: 'POST', credentials: 'same-origin', body: formData });
         if (!res.ok) {
             showToast("Erreur d'envoi");
             return;
@@ -603,6 +604,7 @@ if (btnSendReport) {
         try {
             const res = await fetch('/api/report/send', {
                 method: 'POST',
+                credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: email })
             });
@@ -635,7 +637,7 @@ if (btnSendReport) {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 async function checkAuth() {
     try {
-        const res = await fetch('/auth/me');
+        const res = await fetch('/auth/me', { credentials: 'same-origin' });
         if (res.ok) {
             const user = await res.json();
             showApp(user);
@@ -678,19 +680,15 @@ async function doLogin() {
         const fd = new FormData();
         fd.append('email', email);
         fd.append('password', password);
-        const res = await fetch('/auth/login', { method: 'POST', body: fd });
-        if (res.redirected || res.ok) {
-            const ok = await checkAuth();
-            if (ok) {
-                fetchShifts();
-                fetchIncidents();
-                fetchInterventions();
-            }
+        const res = await fetch('/auth/login', { method: 'POST', credentials: 'same-origin', body: fd });
+
+        if (res.ok) {
+            // Login succeeded — reload page so session cookie is recognized
+            window.location.href = '/';
         } else {
             const html = await res.text();
-            // Simple flash error from server
             const m = html.match(/flash\(["'](.+?)["']/);
-            errorEl.textContent = m ? m[1] : 'Erreur de connexion.';
+            errorEl.textContent = m ? m[1] : 'Email ou mot de passe incorrect.';
             errorEl.style.display = 'block';
         }
     } catch (e) {
@@ -703,7 +701,7 @@ async function doLogin() {
 
 async function doLogout() {
     try {
-        await fetch('/auth/logout', { method: 'POST' });
+        await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
     } catch (_) {}
     showLogin();
 }

@@ -76,15 +76,16 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # -- DATABASE + MIGRATE --
-from models import db, bcrypt
+from models import db, bcrypt, User, Shift, Incident, Intervention
 db.init_app(app)
+bcrypt.init_app(app)
 migrate = Migrate(app, db)
 
 # -- AUTH BLUEPRINTS --
 from auth import auth_bp, login_manager, login_required, current_user, role_required
 from admin import admin_bp
-auth_bp.init_app(app)
-admin_bp.init_app(app)
+app.register_blueprint(auth_bp)
+app.register_blueprint(admin_bp)
 login_manager.init_app(app)
 
 @app.after_request
