@@ -77,6 +77,113 @@ class User(db.Model):
         return f"<User {self.email} [{self.role}]>"
 
 
+class Client(db.Model):
+    """Entreprise ou client pour lequel un agent travaille."""
+    __tablename__ = "clients"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    address = db.Column(db.String(255), nullable=True)
+    color = db.Column(db.String(7), nullable=True)  # hex color e.g. "#2040a0"
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=get_now)
+
+    tasks = db.relationship("Task", backref="client", lazy="dynamic")
+    locations = db.relationship("WorkLocation", backref="client", lazy="dynamic")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "address": self.address,
+            "color": self.color,
+        }
+
+    def __repr__(self):
+        return f"<Client {self.name}>"
+
+
+class Task(db.Model):
+    """Tâche / catégorie de travail associée à un client."""
+    __tablename__ = "tasks"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    color = db.Column(db.String(7), nullable=True)  # hex e.g. "#22c55e"
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=get_now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "client_id": self.client_id,
+            "name": self.name,
+            "color": self.color,
+        }
+
+    def __repr__(self):
+        return f"<Task {self.name}>"
+
+
+class WorkLocation(db.Model):
+    """Zone GPS pour déclenchement auto du pointage."""
+    __tablename__ = "work_locations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=True, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    latitude = db.Column(db.Float, nullable=False)
+    longitude = db.Column(db.Float, nullable=False)
+    radius_meters = db.Column(db.Integer, nullable=False, default=100)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=get_now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "client_id": self.client_id,
+            "name": self.name,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "radius_meters": self.radius_meters,
+            "is_active": self.is_active,
+        }
+
+    def __repr__(self):
+        return f"<WorkLocation {self.name} [{self.latitude},{self.longitude}]>"
+
+
+class Position(db.Model):
+    """Position GPS d'un agent sur le terrain."""
+    __tablename__ = "positions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    latitude = db.Column(db.Float, nullable=False)
+    longitude = db.Column(db.Float, nullable=False)
+    accuracy = db.Column(db.Float, nullable=True)  # mètres
+    altitude = db.Column(db.Float, nullable=True)
+    source = db.Column(db.String(20), nullable=False, default="gps")  # gps | network | manually
+    timestamp = db.Column(db.DateTime(timezone=True), nullable=False, default=get_now)
+
+    user = db.relationship("User", backref="positions")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "user_name": self.user.name if self.user else None,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "accuracy": self.accuracy,
+            "altitude": self.altitude,
+            "source": self.source,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+        }
+
+    def __repr__(self):
+        return f"<Position {self.user_id} [{self.latitude},{self.longitude}]>"
+
+
 class Shift(db.Model):
     """Poste de travail — pointage arrivée/départ d'un agent."""
     __tablename__ = "shifts"
@@ -87,8 +194,15 @@ class Shift(db.Model):
     clock_out = db.Column(db.DateTime(timezone=True), nullable=True)
     duration_minutes = db.Column(db.Integer, nullable=True)  # Calculé au clock_out
 
+    client_id = db.Column(db.Integer, db.ForeignKey("clients.id"), nullable=True, index=True)
+    task_id = db.Column(db.Integer, db.ForeignKey("tasks.id"), nullable=True, index=True)
+    notes = db.Column(db.Text, nullable=True)
+    source = db.Column(db.String(20), nullable=False, default="manual")  # manual | geo | wifi
+
     # Relations
     user = db.relationship("User", backref="shifts")
+    client = db.relationship("Client", foreign_keys=[client_id])
+    task = db.relationship("Task", foreign_keys=[task_id])
 
     def to_dict(self):
         return {
@@ -98,6 +212,12 @@ class Shift(db.Model):
             "clock_in": self.clock_in.isoformat() if self.clock_in else None,
             "clock_out": self.clock_out.isoformat() if self.clock_out else None,
             "duration_minutes": self.duration_minutes,
+            "client_id": self.client_id,
+            "client_name": self.client.name if self.client else None,
+            "task_id": self.task_id,
+            "task_name": self.task.name if self.task else None,
+            "notes": self.notes,
+            "source": self.source,
         }
 
 
