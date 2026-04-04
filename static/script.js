@@ -632,8 +632,100 @@ if (btnSendReport) {
     });
 }
 
-// Init
-fetchShifts();
-fetchIncidents();
-fetchInterventions();
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function checkAuth() {
+    try {
+        const res = await fetch('/auth/me');
+        if (res.ok) {
+            const user = await res.json();
+            showApp(user);
+            return true;
+        }
+    } catch (_) {}
+    showLogin();
+    return false;
+}
+
+function showLogin() {
+    document.getElementById('login-overlay').style.display = 'flex';
+    document.getElementById('app-wrapper').style.display = 'none';
+}
+
+function showApp(user) {
+    document.getElementById('login-overlay').style.display = 'none';
+    document.getElementById('app-wrapper').style.display = 'block';
+    document.getElementById('current-user-name').textContent = user.name;
+    document.getElementById('current-user-role').textContent = user.role;
+}
+
+async function doLogin() {
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errorEl = document.getElementById('login-error');
+    errorEl.style.display = 'none';
+
+    if (!email || !password) {
+        errorEl.textContent = 'Remplissez email et mot de passe.';
+        errorEl.style.display = 'block';
+        return;
+    }
+
+    const btn = document.getElementById('btn-login');
+    btn.disabled = true;
+    btn.textContent = '...';
+
+    try {
+        const fd = new FormData();
+        fd.append('email', email);
+        fd.append('password', password);
+        const res = await fetch('/auth/login', { method: 'POST', body: fd });
+        if (res.redirected || res.ok) {
+            const ok = await checkAuth();
+            if (ok) {
+                fetchShifts();
+                fetchIncidents();
+                fetchInterventions();
+            }
+        } else {
+            const html = await res.text();
+            // Simple flash error from server
+            const m = html.match(/flash\(["'](.+?)["']/);
+            errorEl.textContent = m ? m[1] : 'Erreur de connexion.';
+            errorEl.style.display = 'block';
+        }
+    } catch (e) {
+        errorEl.textContent = 'Erreur réseau.';
+        errorEl.style.display = 'block';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Se connecter';
+}
+
+async function doLogout() {
+    try {
+        await fetch('/auth/logout', { method: 'POST' });
+    } catch (_) {}
+    showLogin();
+}
+
+// Allow Enter key on login form
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('login-password')?.addEventListener('keypress', e => {
+        if (e.key === 'Enter') doLogin();
+    });
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+    const authed = await checkAuth();
+    if (authed) {
+        fetchShifts();
+        fetchIncidents();
+        fetchInterventions();
+    }
+}
+
+// Fix: replace the final fetch calls with a single init()
+// init() handles auth + data fetch
+
 
