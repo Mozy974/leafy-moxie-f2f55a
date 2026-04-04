@@ -296,21 +296,24 @@ def login_logs():
     )
     rows = "".join(_log_row(l) for l in pagination.items)
 
-    body = f"""
-    <div class="tab-bar">
-      <a class="tab" href="{url_for('admin.index')}">Utilisateurs</a>
-      <a class="tab active" href="{url_for('admin.login_logs')}">Logs Connexion</a>
-    </div>
-    <div class="card">
-      <h2>Logs de connexion</h2>
-      <table>
-        <thead><tr><th>Date</th><th>Email</th><th>Succès</th><th>IP</th><th>User-Agent</th></tr></thead>
-        <tbody>{rows}</tbody>
-      </table>
-      {"<p style=\"margin-top:1rem;\"><a href=\"?page=" + str(page-1) + "\">← Précédent</a> | <a href=\"?page=" + str(page+1) + "\">Suivant →</a></p>" if pagination.has_prev else ""}
-      {"<p style=\"margin-top:1rem;\"><a href=\"?page=" + str(page+1) + "\">Suivant →</a></p>" if pagination.has_next else ""}
-    </div>
-    """
+    body_parts = [
+        '<div class="tab-bar">',
+        f'<a class="tab" href="{url_for("admin.index")}">Utilisateurs</a>',
+        f'<a class="tab active" href="{url_for("admin.login_logs")}">Logs Connexion</a>',
+        '</div>',
+        '<div class="card">',
+        '<h2>Logs de connexion</h2>',
+        '<table>',
+        '<thead><tr><th>Date</th><th>Email</th><th>Succès</th><th>IP</th><th>User-Agent</th></tr></thead>',
+        f'<tbody>{rows}</tbody>',
+        '</table>',
+    ]
+    if pagination.has_prev:
+        body_parts.append(f'<p style="margin-top:1rem;"><a href="?page={page-1}">← Précédent</a> | <a href="?page={page+1}">Suivant →</a></p>')
+    elif pagination.has_next:
+        body_parts.append(f'<p style="margin-top:1rem;"><a href="?page={page+1}">Suivant →</a></p>')
+    body_parts.append('</div>')
+    body = ''.join(body_parts)
     return render_page("Logs Connexion", body)
 
 
