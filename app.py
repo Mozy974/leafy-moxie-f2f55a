@@ -73,8 +73,8 @@ SMTP_PASS = os.environ.get('SMTP_PASS')
 
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+UPLOAD_FOLDER = '/var/task/uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
 # -- DATABASE + MIGRATE --
 from models import db, bcrypt, User, Shift, Incident, Intervention
 db.init_app(app)
